@@ -1,4 +1,5 @@
 
+using CleanNet.Api.Middleware;
 using CleanNet.Application.CatFacts.Commands;
 using CleanNet.Application.Interfaces;
 using CleanNet.Infra.Logging;
@@ -61,6 +62,8 @@ public class Program
             app.UseSwagger();
             app.UseSwaggerUI();
         }
+        
+        app.UseMiddleware<TracingMiddleware>();
 
         app.UseHttpsRedirection();
 
