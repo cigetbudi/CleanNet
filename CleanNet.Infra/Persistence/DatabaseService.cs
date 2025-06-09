@@ -1,4 +1,5 @@
 ﻿using CleanNet.Application.Interfaces;
+using CleanNet.Infra.Common;
 using Dapper;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -13,16 +14,35 @@ namespace CleanNet.Infra.Persistence
     public class DatabaseService : IDatabaseService
     {
         private readonly string _connString;
-        public DatabaseService(IConfiguration configuration)
+        private readonly IAppLogger<DatabaseService> _appLogger;
+
+        public DatabaseService(IConfiguration configuration, IAppLogger<DatabaseService> appLogger)
         {
             _connString = configuration.GetConnectionString("Default");
+            _appLogger = appLogger;
         }
 
         public async Task InsertCatFactAsync(string fact, int length)
         {
+            using var activity = TracingHelper.StartActivity("Insert CatFact to DB");
+
             const string sql = "INSERT INTO cat_facts (fact, length) VALUES (@fact, @length);";
-            using var conn = new NpgsqlConnection(_connString);
-            await conn.ExecuteAsync(sql, new { fact, length });
+            await using var conn = new NpgsqlConnection(_connString);
+
+            try
+            {
+                activity?.SetTag("db.statement", sql);
+                activity?.SetTag("db.system", "postgresql");
+
+                await conn.ExecuteAsync(sql, new { fact, length });
+                _appLogger.LogInformation("Berhasil insert cat_fact: {Fact}", fact);
+            }
+            catch (Exception ex)
+            {
+                _appLogger.LogError(ex, "Gagal insert ke tabel cat_facts dengan fact: {Fact}", fact);
+                activity.SetError(ex);
+                throw;
+            }
         }
     }
 }
